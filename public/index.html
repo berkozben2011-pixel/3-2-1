@@ -1,1 +1,48 @@
-
+<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3-2-1 Ortak Futbolcu</title>
+<style>
+body{margin:0;font-family:system-ui,sans-serif;background:#0b3d2e;color:#fff;display:flex;justify-content:center}
+#app{width:100%;max-width:480px;padding:20px;box-sizing:border-box;text-align:center}
+input,button{font-size:18px;padding:12px;border-radius:10px;border:0;margin:6px 0;width:100%;box-sizing:border-box}
+button{background:#ffd23f;color:#111;font-weight:700}button.alt{background:#1f6f54;color:#fff}button:disabled{opacity:.5}
+.row{display:flex;gap:8px}.row>*{flex:1}.card{background:#145a43;border-radius:14px;padding:14px;margin:10px 0}
+.big{font-size:96px;font-weight:800}.teams{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.team{background:#fff;color:#111;border-radius:12px;padding:16px 8px;font-weight:700}.ok{color:#8dff9d}.no{color:#ff9d9d}
+</style></head><body><div id="app"></div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const s=io(),A=document.getElementById('app');let st=null,dl=0,league=null,TEAMS={},LK=[],msg='';
+const esc=x=>String(x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+fetch('/teams').then(r=>r.json()).then(t=>{TEAMS=t;LK=Object.keys(t)});
+s.on('state',x=>{if(x.phase!=='pick')league=null;st=x;dl=Date.now()+x.left;msg='';render()});
+s.on('err',m=>{msg=m;render()});
+s.on('closed',()=>{st=null;msg='Rakip ayrıldı, oda kapandı.';render()});
+setInterval(()=>document.querySelectorAll('[data-t]').forEach(e=>e.textContent=Math.max(0,Math.ceil((dl-Date.now())/1000))),200);
+const nm=()=>document.getElementById('n').value.trim()||'Oyuncu';
+const mk=()=>s.emit('create',{name:nm()}),jn=()=>s.emit('join',{code:document.getElementById('c').value.toUpperCase(),name:nm()});
+const mode=m=>s.emit('mode',m),lg=i=>{league=i;render()},pk=(l,t)=>s.emit('pick',TEAMS[LK[l]][t]);
+const ans=p=>s.emit('answer',{text:p?'':document.getElementById('a').value});
+function resBlock(p){const r=st.res;if(!r)return'';return`<div class=card>${r.answers.map((a,i)=>`<div>${esc(p[i].name)}: ${a.ok?'<span class=ok>✔ '+esc(a.name)+' +1</span>':'<span class=no>✘ '+esc(a.text)+'</span>'}</div>`).join('')}<small>Ortak oyuncu örnekleri: ${r.sample.map(esc).join(', ')||'yok'}</small></div>`}
+function render(){
+ if(!st){A.innerHTML=`<h1>⚽ 3-2-1</h1><div class=card><input id=n placeholder="Adın" maxlength=14><button onclick="mk()">Oda Kur</button><input id=c placeholder="Oda kodu" maxlength=4 style="text-transform:uppercase"><button class=alt onclick="jn()">Odaya Katıl</button><p class=no>${esc(msg)}</p></div>`;return}
+ const p=st.players,me=st.me;let h=`<h1>⚽ 3-2-1</h1><div class=card>${p.map((q,i)=>`${esc(q.name)}${i==me?' (sen)':''}: <b>${q.score}</b>`).join(' &nbsp;|&nbsp; ')}<br>Hedef: ${st.mode} puan · Oda: <b>${st.code}</b></div>`;
+ const ph=st.phase;
+ if(ph==='lobby'||ph==='over'){
+  if(ph==='over')h+=`<h2>${esc(p[st.winner].name)} kazandı! 🏆</h2>`+resBlock(p);
+  if(p.length<2)h+='<p>Rakip bekleniyor… Oda kodunu paylaş.</p>';
+  if(me===0)h+=`<div class=row><button class="${st.mode==3?'':'alt'}" onclick="mode(3)">3 Puan</button><button class="${st.mode==5?'':'alt'}" onclick="mode(5)">5 Puan</button></div><button onclick="s.emit('start')" ${p.length<2?'disabled':''}>${ph==='over'?'Tekrar Oyna':'Başlat'}</button>`;
+  else h+='<p>Oda sahibi oyunu başlatacak.</p>';
+ }else if(ph==='pick'){
+  h+=`<h2>Takımını seç: <span data-t></span> sn</h2>`;
+  if(p[me].picked)h+='<p>Seçimin tamam, rakip bekleniyor…</p>';
+  else if(league===null)h+=LK.map((l,i)=>`<button class=alt onclick="lg(${i})">${esc(l)}</button>`).join('');
+  else h+=`<button onclick="lg(null)">← Ligler</button>`+TEAMS[LK[league]].map((t,i)=>`<button class=alt onclick="pk(${league},${i})">${esc(t)}</button>`).join('');
+  h+=`<p class=no>${esc(msg)}</p>`;
+ }else if(ph==='count')h+=`<div class=big data-t></div>`;
+ else if(ph==='answer'){
+  h+=`<div class=teams>${st.teams.map(t=>`<div class=team>${esc(t)}</div>`).join('')}</div><h3>Ortak futbolcu kim? <span data-t></span> sn</h3>`;
+  h+=p[me].answered?'<p>Cevabın alındı, rakip bekleniyor…</p>':`<input id=a placeholder="Futbolcu adı" autocomplete=off onkeydown="if(event.key=='Enter')ans()"><div class=row><button onclick="ans()">Gönder</button><button class=alt onclick="ans(1)">Pas</button></div>`;
+ }else if(ph==='result')h+=`<div class=teams>${st.teams.map(t=>`<div class=team>${esc(t)}</div>`).join('')}</div>`+resBlock(p)+'<p>Sıradaki tur geliyor…</p>';
+ A.innerHTML=h;
+}
+render();
+</script></body></html>
