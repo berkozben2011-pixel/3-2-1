@@ -1,0 +1,1 @@
+{"name":"321-oyunu","version":"1.0.0","scripts":{"start":"node server.js","veri":"node build_data.js"},"dependencies":{"express":"^4.19.2","socket.io":"^4.7.5"}}
